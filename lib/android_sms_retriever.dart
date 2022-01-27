@@ -68,4 +68,10 @@ class AndroidSmsRetriever {
         'requestOneTimeConsentSms', {'senderPhoneNumber': senderPhoneNumber});
     return smsCode;
   }
+
+  /// Using this function, when sms received android will ask user to let application use message and extract code, even if sms message does not contain application signature.
+  /// You can pass sender phone number in order to detect messages sent from specific sender.
+  static Future<void> stopOneTimeConsentSmsListener() async {
+    await _channel.invokeMethod('stopConsentSmsListener');
+  }
 }

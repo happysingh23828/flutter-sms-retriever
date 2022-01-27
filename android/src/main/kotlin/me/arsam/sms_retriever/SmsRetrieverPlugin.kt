@@ -177,13 +177,19 @@ class SmsRetrieverPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plug
                     Log.e(javaClass::getSimpleName.name, e.toString())
                 }
             }
+            "stopConsentSmsListener" -> {
+                try {
+                    context.unregisterReceiver(consentReceiver)
+                    result.success(null)
+                } catch (e: Throwable) {
+                    Log.e(javaClass::getSimpleName.name, e.toString())
+                }
+            }
             "requestOneTimeConsentSms" -> {
+                pendingResult = result
                 consentReceiver = ConsentBroadcastReceiver()
                 context.registerReceiver(consentReceiver, IntentFilter(SmsRetriever.SMS_RETRIEVED_ACTION))
-                val task = SmsRetriever.getClient(context).startSmsUserConsent(call.argument("senderPhoneNumber"))
-                task.addOnSuccessListener {
-                    pendingResult = result
-                }
+                SmsRetriever.getClient(context).startSmsUserConsent(call.argument("senderPhoneNumber"))
             }
             else -> result.notImplemented()
         }
@@ -224,6 +230,7 @@ class SmsRetrieverPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plug
                         pendingResult?.success(null)
                     }
                 }
+                pendingResult = null
             }
             STORE_PHONE_NUMBER_REQUEST -> {
                 if (resultCode == RESULT_OK) {
@@ -287,12 +294,8 @@ class SmsRetrieverPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plug
                         if (activity?.isDestroyed == false) {
                             pendingResult?.success(sms)
                         }
-                    }
 
-                    CommonStatusCodes.TIMEOUT -> {
-                        if (activity?.isDestroyed == false) {
-                            pendingResult?.success(null)
-                        }
+                        pendingResult = null
                     }
                 }
             }
@@ -321,12 +324,6 @@ class SmsRetrieverPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plug
                             }
                         }
                     }
-
-                    CommonStatusCodes.TIMEOUT -> {
-                        if (activity?.isDestroyed == false) {
-                            pendingResult?.success(null)
-                        }
-                    }
                 }
             }
         }
@@ -342,7 +339,7 @@ class SmsRetrieverPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plug
                 activity?.unregisterReceiver(it)
             }
         } catch (ex : Exception) {
-            Log.e(TAG, "Failed to unregister services.", exception)
+            Log.e(TAG, "Failed to unregister services.", ex)
         }
     }
 
