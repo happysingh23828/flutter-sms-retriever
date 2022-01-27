@@ -34,6 +34,8 @@ class SmsRetrieverPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plug
     private var pendingResult: MethodChannel.Result? = null
 
     private var receiver: SmsBroadcastReceiver? = null
+    private var consentReceiver: ConsentBroadcastReceiver? = null
+
     var sms: String? = null
 
     override fun onAttachedToEngine(@NonNull flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
@@ -49,6 +51,7 @@ class SmsRetrieverPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plug
 
     override fun onDetachedFromActivity() {
         activity = null
+        unregisterReceiver()
     }
 
     override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) {
@@ -175,8 +178,8 @@ class SmsRetrieverPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plug
                 }
             }
             "requestOneTimeConsentSms" -> {
-                val receiver = ConsentBroadcastReceiver()
-                context.registerReceiver(receiver, IntentFilter(SmsRetriever.SMS_RETRIEVED_ACTION))
+                consentReceiver = ConsentBroadcastReceiver()
+                context.registerReceiver(consentReceiver, IntentFilter(SmsRetriever.SMS_RETRIEVED_ACTION))
                 val task = SmsRetriever.getClient(context).startSmsUserConsent(call.argument("senderPhoneNumber"))
                 task.addOnSuccessListener {
                     pendingResult = result
@@ -211,7 +214,7 @@ class SmsRetrieverPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plug
                     // Extract one-time code from the message and complete verification
                     // `message` contains the entire text of the SMS message, so you will need
                     // to parse the string.
-                    if (pendingResult != null) {
+                    if (pendingResult != null && activity?.isDestroyed == false) {
                         pendingResult!!.success(message)
                     }
                     // send one time code to the server
@@ -238,7 +241,7 @@ class SmsRetrieverPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plug
                     if (data != null) {
                         val credential: Credential? = data.getParcelableExtra(Credential.EXTRA_KEY)
                         if (credential != null) {
-                            if (pendingResult != null) {
+                            if (pendingResult != null && activity?.isDestroyed == false) {
                                 pendingResult!!.success(credential.id)
                             }
                             return false
@@ -281,11 +284,15 @@ class SmsRetrieverPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plug
                     CommonStatusCodes.SUCCESS -> {
                         // Get SMS message contents
                         sms = extras.get(SmsRetriever.EXTRA_SMS_MESSAGE) as String
-                        pendingResult?.success(sms)
+                        if (activity?.isDestroyed == false) {
+                            pendingResult?.success(sms)
+                        }
                     }
 
                     CommonStatusCodes.TIMEOUT -> {
-                        pendingResult?.success(null)
+                        if (activity?.isDestroyed == false) {
+                            pendingResult?.success(null)
+                        }
                     }
                 }
             }
@@ -309,15 +316,33 @@ class SmsRetrieverPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plug
                                 this@SmsRetrieverPlugin.activity!!.startActivityForResult(consentIntent, SMS_CONSENT_REQUEST)
                             }
                         } catch (e: ActivityNotFoundException) {
-                            pendingResult?.success(null)
+                            if (activity?.isDestroyed == false) {
+                                pendingResult?.success(null)
+                            }
                         }
                     }
 
                     CommonStatusCodes.TIMEOUT -> {
-                        pendingResult?.success(null)
+                        if (activity?.isDestroyed == false) {
+                            pendingResult?.success(null)
+                        }
                     }
                 }
             }
+        }
+    }
+
+    private fun unregisterReceiver() {
+        try {
+            receiver?.let {
+                activity?.unregisterReceiver(it)
+            }
+
+            consentReceiver?.let {
+                activity?.unregisterReceiver(it)
+            }
+        } catch (ex : Exception) {
+            Log.e(TAG, "Failed to unregister services.", exception)
         }
     }
 
