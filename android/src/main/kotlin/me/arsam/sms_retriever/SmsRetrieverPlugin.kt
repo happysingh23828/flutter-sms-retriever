@@ -284,18 +284,30 @@ class SmsRetrieverPlugin : FlutterPlugin, MethodCallHandler, ActivityAware, Plug
     inner class SmsBroadcastReceiver : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             if (SmsRetriever.SMS_RETRIEVED_ACTION == intent.action) {
+
+
                 val extras = intent.extras
-                val smsRetrieverStatus = extras!!.get(SmsRetriever.EXTRA_STATUS) as Status
 
-                when (smsRetrieverStatus.statusCode) {
-                    CommonStatusCodes.SUCCESS -> {
-                        // Get SMS message contents
-                        sms = extras.get(SmsRetriever.EXTRA_SMS_MESSAGE) as String
-                        if (activity?.isDestroyed == false) {
-                            pendingResult?.success(sms)
+                if (extras != null) {
+                    val status = extras.get(SmsRetriever.EXTRA_STATUS)
+
+                    if (status != null) {
+                        val smsRetrieverStatus = status as Status
+                        when (smsRetrieverStatus.statusCode) {
+                            CommonStatusCodes.SUCCESS -> {
+                                // Get SMS message contents
+                                val smsRetrieved = extras.get(SmsRetriever.EXTRA_SMS_MESSAGE)
+
+                                if (smsRetrieved != null) {
+                                    sms = smsRetrieved as String
+                                    if (activity?.isDestroyed == false) {
+                                        pendingResult?.success(sms)
+                                    }
+
+                                    pendingResult = null
+                                }
+                            }
                         }
-
-                        pendingResult = null
                     }
                 }
             }
